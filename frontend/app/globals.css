@@ -195,6 +195,44 @@ a {
   }
 }
 
+/* Tally light: a hard broadcast blink for the ON AIR sign on the desk. */
+@keyframes cf-tally {
+  0%,
+  44% {
+    opacity: 1;
+    box-shadow: 0 0 0 1px rgba(255, 92, 115, 0.7), 0 0 26px rgba(255, 92, 115, 0.65);
+  }
+  50%,
+  94% {
+    opacity: 0.62;
+    box-shadow: 0 0 0 1px rgba(255, 92, 115, 0.45), 0 0 12px rgba(255, 92, 115, 0.3);
+  }
+}
+
+/* Recording dot pulse on the show-mode readout clock. */
+@keyframes cf-rec {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.45;
+  }
+}
+
+/* Now-line traveling playhead sweep across the rundown grid. */
+@keyframes cf-playhead {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 .rise {
   animation: cf-rise var(--dur-2) var(--ease) both;
 }

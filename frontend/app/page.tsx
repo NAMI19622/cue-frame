@@ -4,17 +4,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../lib/store';
 import { api, writeAndWait } from '../lib/genlayer';
 import type { CueCard, ShowSpine, RoleAck, ShowReceipt } from '../lib/types';
-import { gateColor, gateLamp } from '../lib/format';
+import { gateColor, gateLabel, riskColor } from '../lib/format';
 
 import ShowSpineTimeline, { LaneCue } from '../components/ShowSpineTimeline';
 import GateLock from '../components/GateLock';
-import CueLight from '../components/CueLight';
 import ShowReceiptSeal from '../components/ShowReceiptSeal';
 import ValidatorPanel from '../components/ValidatorPanel';
 import CueLane from '../components/CueLane';
 import OnAirGate from '../components/OnAirGate';
+import OnAirBar from '../components/OnAirBar';
 import TransportBar, { TxPhase } from '../components/TransportBar';
-import WalletButton from '../components/WalletButton';
 import AboutDrawer from '../components/AboutDrawer';
 import ShowForm from '../components/ShowForm';
 import CueForm from '../components/CueForm';
@@ -109,6 +108,11 @@ export default function CommandCenterPage() {
     return Array.from(set);
   }, [show, cues]);
 
+  const selectCue = useCallback((id: string) => {
+    setActiveCue(id);
+    setGateOpen(true);
+  }, []);
+
   const laneCues: LaneCue[] = useMemo(() => {
     if (!show) return [];
     return cues.map((c) => ({
@@ -119,8 +123,14 @@ export default function CommandCenterPage() {
       color: c.evaluated ? gateColor(c.gate) : '#8c8597',
       active: c.id === activeCue,
       evaluated: c.evaluated,
+      cueType: c.cueType,
+      riskColor: riskColor(c.riskLevel),
+      riskLevel: c.riskLevel,
+      gateLabel: c.evaluated ? gateLabel(c.gate) : undefined,
+      ackCount: c.ackCount,
+      onSelect: () => selectCue(c.id),
     }));
-  }, [cues, show, laneList, activeCue]);
+  }, [cues, show, laneList, activeCue, selectCue]);
 
   const startTravel = useCallback(() => {
     setTravel(0);
@@ -137,11 +147,6 @@ export default function CommandCenterPage() {
   const stopTravel = useCallback(() => {
     if (travelTimer.current) clearInterval(travelTimer.current);
     setTravel(-1);
-  }, []);
-
-  const selectCue = useCallback((id: string) => {
-    setActiveCue(id);
-    setGateOpen(true);
   }, []);
 
   const evaluateCue = useCallback(
@@ -237,47 +242,18 @@ export default function CommandCenterPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      {/* slim command strip (not the hero) */}
-      <nav
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          padding: '10px 22px',
-          borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <DeskMark />
-          <div>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.02rem', lineHeight: 1 }}>
-              CueFrame
-            </div>
-            <div style={{ fontSize: '0.64rem', color: 'var(--ink-3)' }}>Command center</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginLeft: 18, fontSize: '0.72rem', color: 'var(--ink-3)' }}>
-          <Stat label="Shows" value={summary?.shows} />
-          <Stat label="Cues" value={summary?.cues} />
-          <Stat label="Ready" value={summary?.ready} />
-          <Stat label="Held" value={summary?.held} />
-          <Stat label="Blocked" value={summary?.blocked} />
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button
-            onClick={() => setReducedMotion(!reducedMotion)}
-            title="Toggle reduced motion"
-            style={pillBtn}
-          >
-            {reducedMotion ? 'Motion off' : 'Motion on'}
-          </button>
-          <button onClick={() => setShowAbout(true)} style={pillBtn}>
-            Briefing
-          </button>
-          <WalletButton />
-        </div>
-      </nav>
+      <OnAirBar
+        showTitle={show?.title}
+        showMode={show?.showMode}
+        summary={summary}
+        held={summary?.held ?? 0}
+        blocked={summary?.blocked ?? 0}
+        ready={summary?.ready ?? 0}
+        liveRound={busy}
+        reducedMotion={reducedMotion}
+        setReducedMotion={setReducedMotion}
+        onBriefing={() => setShowAbout(true)}
+      />
 
       <main
         style={{
@@ -351,7 +327,7 @@ export default function CommandCenterPage() {
           </div>
 
           {/* full-viewport-width canvas timeline: the dominant hero surface */}
-          <div style={{ position: 'relative', height: 280 }}>
+          <div style={{ position: 'relative', height: 320 }}>
             {show ? (
               <ShowSpineTimeline
                 lanes={laneList}
@@ -360,6 +336,7 @@ export default function CommandCenterPage() {
                 reducedMotion={reducedMotion}
                 travel={travel}
                 travelColor={cue?.evaluated ? gateColor(cue.gate) : '#ffb84d'}
+                onAddCue={() => setShowCueForm(true)}
               />
             ) : (
               <div
@@ -608,26 +585,6 @@ export default function CommandCenterPage() {
   );
 }
 
-const pillBtn: React.CSSProperties = {
-  fontSize: '0.72rem',
-  color: 'var(--ink-2)',
-  background: 'transparent',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-pill)',
-  padding: '6px 13px',
-};
-
-function Stat({ label, value }: { label: string; value?: number }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-      <span className="mono" style={{ color: 'var(--ink)', fontSize: '0.9rem' }}>
-        {value ?? '..'}
-      </span>
-      <span style={{ fontSize: '0.6rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
-    </div>
-  );
-}
-
 function BentoCard({
   title,
   right,
@@ -650,23 +607,5 @@ function BentoCard({
       <Eyebrow right={right}>{title}</Eyebrow>
       {children}
     </div>
-  );
-}
-
-function DeskMark() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden>
-      <defs>
-        <linearGradient id="deskmark" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#ffb84d" />
-          <stop offset="55%" stopColor="#e85dce" />
-          <stop offset="100%" stopColor="#4debff" />
-        </linearGradient>
-      </defs>
-      <rect x="3" y="6" width="28" height="22" rx="4" fill="none" stroke="url(#deskmark)" strokeWidth="1.5" />
-      <circle cx="11" cy="17" r="3" fill="#56f29a" />
-      <circle cx="17" cy="17" r="3" fill="#ffb84d" />
-      <circle cx="23" cy="17" r="3" fill="#ff5c73" />
-    </svg>
   );
 }
