@@ -5,7 +5,7 @@ import { useStore } from '../lib/store';
 import { shortAddr } from '../lib/format';
 import { explorerAddress } from '../lib/config';
 
-export default function WalletButton() {
+export default function WalletButton({ dropUp = false }: { dropUp?: boolean }) {
   const { wallet, connect, disconnect } = useStore();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,7 +45,7 @@ export default function WalletButton() {
           <div
             style={{
               position: 'absolute',
-              top: '110%',
+              ...(dropUp ? { bottom: '110%' } : { top: '110%' }),
               right: 0,
               width: 230,
               fontSize: '0.7rem',
@@ -94,7 +94,7 @@ export default function WalletButton() {
         <div
           style={{
             position: 'absolute',
-            top: '115%',
+            ...(dropUp ? { bottom: '115%' } : { top: '115%' }),
             right: 0,
             width: 248,
             background: 'var(--surface-solid)',

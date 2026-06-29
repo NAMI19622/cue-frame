@@ -251,8 +251,6 @@ export default function CommandCenterPage() {
         ready={summary?.ready ?? 0}
         liveRound={busy}
         reducedMotion={reducedMotion}
-        setReducedMotion={setReducedMotion}
-        onBriefing={() => setShowAbout(true)}
       />
 
       <main
@@ -549,6 +547,21 @@ export default function CommandCenterPage() {
           </div>
         )}
       </main>
+
+      {/* Fixed bottom transport bar: CueFrame's desk control surface. It always
+          shows the transaction lifecycle AND carries the control cluster
+          (Motion / Briefing / Connect wallet), so the controls live at the
+          bottom of the screen rather than in the top tally readout. */}
+      <div style={{ flexShrink: 0 }}>
+        <TransportBar
+          phase={txPhase}
+          hash={txHash}
+          message={txMessage}
+          reducedMotion={reducedMotion}
+          setReducedMotion={setReducedMotion}
+          onBriefing={() => setShowAbout(true)}
+        />
+      </div>
 
       {/* on-air gate overlay: the cue inspector, not a side rail */}
       {gateOpen && cue && (

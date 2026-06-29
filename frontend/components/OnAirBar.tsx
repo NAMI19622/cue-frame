@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { Summary } from '../lib/types';
-import WalletButton from './WalletButton';
 
 export type DeskTally = 'on_air' | 'hold' | 'standby' | 'clear';
 
@@ -15,14 +14,14 @@ interface Props {
   ready: number;
   liveRound: boolean; // a consensus round is mid-flight
   reducedMotion: boolean;
-  setReducedMotion: (v: boolean) => void;
-  onBriefing: () => void;
 }
 
-// CueFrame's broadcast-desk chrome. This is deliberately NOT the generic
-// "logo + stat strip + pill cluster" sibling header: it is a gallery control
-// bar with a hard tally-light sign (ON AIR / STANDBY), a running studio clock,
-// a show-mode REC readout, and broadcast rocker switches for the controls.
+// CueFrame's broadcast-desk chrome. This top bar is a PURE broadcast/tally
+// readout: the tally-light sign (ON AIR / HOLD / STANDBY / CLEAR), the CUEFRAME
+// wordmark, the show-mode REC readout, the cue-count gauges, and the studio
+// clock. The desk controls (Connect wallet / Motion / Briefing) deliberately do
+// NOT live here; they sit on the bottom TransportBar control surface instead, so
+// CueFrame's navigation puts its controls at the bottom unlike its siblings.
 export default function OnAirBar({
   showTitle,
   showMode,
@@ -32,8 +31,6 @@ export default function OnAirBar({
   ready,
   liveRound,
   reducedMotion,
-  setReducedMotion,
-  onBriefing,
 }: Props) {
   const tally: DeskTally = liveRound
     ? 'on_air'
@@ -114,29 +111,9 @@ export default function OnAirBar({
         <Gauge label="Block" value={blocked} color="var(--hold-red)" lit={blocked > 0} />
       </div>
 
-      {/* Studio clock */}
+      {/* Studio clock: the desk's rightmost readout. Controls are NOT here;
+          they live on the bottom TransportBar control surface. */}
       <StudioClock reducedMotion={reducedMotion} />
-
-      {/* Broadcast switch bank */}
-      <div
-        style={{
-          marginLeft: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '0 16px',
-        }}
-      >
-        <RockerSwitch
-          label="Motion"
-          on={!reducedMotion}
-          onColor="var(--cyan)"
-          onToggle={() => setReducedMotion(!reducedMotion)}
-          title="Toggle reduced motion"
-        />
-        <TallyChip label="Briefing" accent="var(--magenta)" onClick={onBriefing} />
-        <WalletButton />
-      </div>
     </header>
   );
 }
@@ -366,8 +343,9 @@ function StudioClock({ reducedMotion }: { reducedMotion: boolean }) {
         justifyContent: 'center',
         alignItems: 'center',
         gap: 2,
-        padding: '0 16px',
-        borderRight: '1px solid var(--border)',
+        padding: '0 20px',
+        marginLeft: 'auto',
+        borderLeft: '1px solid var(--border)',
       }}
     >
       <span
@@ -397,125 +375,6 @@ function StudioClock({ reducedMotion }: { reducedMotion: boolean }) {
 
 // An illuminated broadcast rocker: a hard rectangular switch that lights its
 // active side, not a soft pill toggle.
-function RockerSwitch({
-  label,
-  on,
-  onColor,
-  onToggle,
-  title,
-}: {
-  label: string;
-  on: boolean;
-  onColor: string;
-  onToggle: () => void;
-  title?: string;
-}) {
-  return (
-    <button
-      onClick={onToggle}
-      title={title}
-      aria-pressed={on}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '5px 8px 5px 10px',
-        borderRadius: 5,
-        border: '1px solid var(--border)',
-        background: 'rgba(5,5,8,0.5)',
-      }}
-    >
-      <span
-        style={{
-          fontSize: '0.58rem',
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          color: 'var(--ink-3)',
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{
-          position: 'relative',
-          width: 42,
-          height: 18,
-          borderRadius: 4,
-          border: `1px solid ${on ? onColor : 'var(--border)'}`,
-          background: 'rgba(5,5,8,0.7)',
-          overflow: 'hidden',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            position: 'absolute',
-            top: 1,
-            bottom: 1,
-            left: on ? '50%' : 1,
-            width: '50%',
-            borderRadius: 3,
-            background: on ? onColor : 'var(--ink-4)',
-            boxShadow: on ? `0 0 10px ${onColor}` : 'none',
-            transition: 'left var(--dur-1) var(--ease)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.5rem',
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            color: '#050508',
-          }}
-        >
-          {on ? 'ON' : 'OFF'}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-// A pressable tally chip used for momentary desk actions.
-function TallyChip({
-  label,
-  accent,
-  onClick,
-}: {
-  label: string;
-  accent: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 7,
-        padding: '7px 13px',
-        borderRadius: 5,
-        border: `1px solid ${accent}55`,
-        background: 'rgba(5,5,8,0.5)',
-        fontSize: '0.62rem',
-        letterSpacing: '0.14em',
-        textTransform: 'uppercase',
-        color: 'var(--ink-2)',
-        fontWeight: 600,
-      }}
-    >
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 999,
-          background: accent,
-          boxShadow: `0 0 8px ${accent}`,
-        }}
-      />
-      {label}
-    </button>
-  );
-}
-
 function DeskMark() {
   return (
     <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden style={{ flexShrink: 0 }}>
