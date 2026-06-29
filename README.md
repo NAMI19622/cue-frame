@@ -18,12 +18,9 @@ cannot carry the meaning.
 | | |
 | --- | --- |
 | Network | Bradbury testnet (`testnet-bradbury`) |
-| Contract | `0x3f682d8C49001c60AAc2bbafa5749350B3ef16f7` |
-| Explorer | https://explorer-bradbury.genlayer.com/address/0x3f682d8C49001c60AAc2bbafa5749350B3ef16f7 |
-| Live desk | https://cue-frame.pages.dev/ |
-| Source | https://github.com/NAMI19622/cue-frame |
 | Backend | the Intelligent Contract; no server, no database |
 | Value transfer | none; network fees only |
+| Contract address | carried in the frontend env and shown in the about panel |
 
 ---
 
