@@ -225,9 +225,10 @@ workspace `.env` as `GENLAYER_PRIVATE_KEY`; never commit a real key).
 
 ```
 NETWORK     testnet-bradbury
-CONTRACT    0x0000000000000000000000000000000000000000   (placeholder; fill after deploy)
-EXPLORER    https://explorer-bradbury.genlayer.com
-FRONTEND    pending your deploy
+CONTRACT    0x3f682d8C49001c60AAc2bbafa5749350B3ef16f7
+EXPLORER    https://explorer-bradbury.genlayer.com/address/0x3f682d8C49001c60AAc2bbafa5749350B3ef16f7
+FRONTEND    https://cue-frame.pages.dev/
+SOURCE      https://github.com/NAMI19622/cue-frame
 ```
 
 After deploying, set `NEXT_PUBLIC_CONTRACT_ADDRESS` and
