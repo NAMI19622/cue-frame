@@ -1,18 +1,18 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../lib/store';
 import { api, writeAndWait } from '../lib/genlayer';
 import type { CueCard, ShowSpine, RoleAck, ShowReceipt } from '../lib/types';
-import { bps, downloadJson, gateColor, gateLamp, riskColor, titleCase } from '../lib/format';
+import { gateColor, gateLamp } from '../lib/format';
 
 import ShowSpineTimeline, { LaneCue } from '../components/ShowSpineTimeline';
 import GateLock from '../components/GateLock';
 import CueLight from '../components/CueLight';
 import ShowReceiptSeal from '../components/ShowReceiptSeal';
 import ValidatorPanel from '../components/ValidatorPanel';
-import CueRail from '../components/CueRail';
+import CueLane from '../components/CueLane';
+import OnAirGate from '../components/OnAirGate';
 import TransportBar, { TxPhase } from '../components/TransportBar';
 import WalletButton from '../components/WalletButton';
 import AboutDrawer from '../components/AboutDrawer';
@@ -21,7 +21,7 @@ import CueForm from '../components/CueForm';
 import AckForm from '../components/AckForm';
 import { Button, Toast, Eyebrow } from '../components/ui';
 
-export default function ControlRoomPage() {
+export default function CommandCenterPage() {
   const store = useStore();
   const { shows, summary, wallet, reducedMotion, setReducedMotion, refresh } = store;
 
@@ -37,6 +37,7 @@ export default function ControlRoomPage() {
   const [travel, setTravel] = useState(-1);
   const [gateAnim, setGateAnim] = useState(false);
 
+  const [gateOpen, setGateOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showShowForm, setShowShowForm] = useState(false);
   const [showCueForm, setShowCueForm] = useState(false);
@@ -100,7 +101,7 @@ export default function ControlRoomPage() {
     setGateAnim(false);
   }, [activeCue, loadAcks]);
 
-  // build the timeline lanes from required roles plus responsible roles
+  // Build the timeline lanes from required roles plus responsible roles.
   const laneList = useMemo(() => {
     if (!show) return ['stage_manager'];
     const set = new Set<string>(show.requiredRoles);
@@ -136,6 +137,11 @@ export default function ControlRoomPage() {
   const stopTravel = useCallback(() => {
     if (travelTimer.current) clearInterval(travelTimer.current);
     setTravel(-1);
+  }, []);
+
+  const selectCue = useCallback((id: string) => {
+    setActiveCue(id);
+    setGateOpen(true);
   }, []);
 
   const evaluateCue = useCallback(
@@ -220,14 +226,24 @@ export default function ControlRoomPage() {
 
   const busy = txPhase === 'pending' || txPhase === 'signing';
 
+  // Acknowledgement tally per role lane, drawn as lanes under the spine.
+  const ackByRole = useMemo(() => {
+    const m = new Map<string, number>();
+    cues.forEach((c) => {
+      if (c.responsibleRole) m.set(c.responsibleRole, (m.get(c.responsibleRole) || 0) + c.ackCount);
+    });
+    return m;
+  }, [cues]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <header
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      {/* slim command strip (not the hero) */}
+      <nav
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
-          padding: '12px 20px',
+          gap: 14,
+          padding: '10px 22px',
           borderBottom: '1px solid var(--border)',
           flexShrink: 0,
         }}
@@ -238,10 +254,10 @@ export default function ControlRoomPage() {
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.02rem', lineHeight: 1 }}>
               CueFrame
             </div>
-            <div style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>Run the moment before it happens</div>
+            <div style={{ fontSize: '0.64rem', color: 'var(--ink-3)' }}>Command center</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 18, marginLeft: 22, fontSize: '0.72rem', color: 'var(--ink-3)' }}>
+        <div style={{ display: 'flex', gap: 16, marginLeft: 18, fontSize: '0.72rem', color: 'var(--ink-3)' }}>
           <Stat label="Shows" value={summary?.shows} />
           <Stat label="Cues" value={summary?.cues} />
           <Stat label="Ready" value={summary?.ready} />
@@ -252,58 +268,90 @@ export default function ControlRoomPage() {
           <button
             onClick={() => setReducedMotion(!reducedMotion)}
             title="Toggle reduced motion"
-            style={{
-              fontSize: '0.7rem',
-              color: 'var(--ink-3)',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-pill)',
-              padding: '6px 11px',
-            }}
+            style={pillBtn}
           >
             {reducedMotion ? 'Motion off' : 'Motion on'}
           </button>
-          <button
-            onClick={() => setShowAbout(true)}
-            style={{
-              fontSize: '0.72rem',
-              color: 'var(--ink-2)',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-pill)',
-              padding: '6px 13px',
-            }}
-          >
+          <button onClick={() => setShowAbout(true)} style={pillBtn}>
             Briefing
           </button>
           <WalletButton />
         </div>
-      </header>
+      </nav>
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '280px 1fr 350px', minHeight: 0 }}>
-        <aside style={{ borderRight: '1px solid var(--border)', padding: 16, overflow: 'hidden' }}>
-          <CueRail
-            activeShow={activeShow}
-            activeCue={activeCue}
-            cues={cues}
-            onSelectShow={setActiveShow}
-            onSelectCue={setActiveCue}
-            onNewShow={() => setShowShowForm(true)}
-            onNewCue={() => setShowCueForm(true)}
-          />
-        </aside>
-
-        <main style={{ overflowY: 'auto', padding: '18px 24px', display: 'grid', gap: 18, alignContent: 'start' }}>
-          <section
+      <main
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+          padding: '16px 22px 28px',
+        }}
+      >
+        {/* ============ ZONE 1: full-width Show Spine hero ============ */}
+        <section
+          className={reducedMotion ? undefined : 'curtain'}
+          style={{
+            borderRadius: 'var(--radius-l)',
+            border: '1px solid var(--border)',
+            background: 'linear-gradient(180deg, rgba(11,16,32,0.72), rgba(5,5,8,0.42))',
+            overflow: 'hidden',
+          }}
+        >
+          {/* show selector + transport now-line */}
+          <div
             style={{
-              height: 300,
-              borderRadius: 'var(--radius-l)',
-              border: '1px solid var(--border)',
-              background: 'linear-gradient(180deg, rgba(11,16,32,0.7), rgba(5,5,8,0.4))',
-              position: 'relative',
-              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              flexWrap: 'wrap',
+              padding: '14px 18px 10px',
             }}
           >
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>
+                Show spine
+              </span>
+              {shows.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveShow(s.id)}
+                  style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    padding: '6px 13px',
+                    borderRadius: 'var(--radius-pill)',
+                    border: activeShow === s.id ? '1px solid var(--border-strong)' : '1px solid var(--border)',
+                    background: activeShow === s.id ? 'rgba(255,184,77,0.14)' : 'transparent',
+                    color: activeShow === s.id ? 'var(--ink)' : 'var(--ink-3)',
+                  }}
+                >
+                  {s.title}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowShowForm(true)}
+                style={{
+                  fontSize: '0.74rem',
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1px dashed var(--border)',
+                  background: 'transparent',
+                  color: 'var(--amber)',
+                }}
+              >
+                + Show
+              </button>
+            </div>
+            <div style={{ flex: 1, minWidth: 280 }}>
+              <TransportBar phase={txPhase} hash={txHash} message={txMessage} embedded />
+            </div>
+          </div>
+
+          {/* full-viewport-width canvas timeline: the dominant hero surface */}
+          <div style={{ position: 'relative', height: 280 }}>
             {show ? (
               <ShowSpineTimeline
                 lanes={laneList}
@@ -329,250 +377,215 @@ export default function ControlRoomPage() {
               </div>
             )}
             {show && (
-              <div style={{ position: 'absolute', left: 14, bottom: 12, fontSize: '0.7rem', color: 'var(--ink-3)' }}>
+              <div style={{ position: 'absolute', left: 16, bottom: 12, fontSize: '0.7rem', color: 'var(--ink-3)' }}>
                 <span style={{ color: 'var(--ink-2)', fontWeight: 600 }}>{show.title}</span>
                 <span style={{ marginLeft: 8 }}>{show.showMode} mode</span>
               </div>
             )}
-          </section>
+          </div>
 
-          {show && (
-            <section
-              style={{
-                borderRadius: 'var(--radius-l)',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                padding: 18,
-              }}
-            >
-              <Eyebrow right={<span style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>{show.showRules.length} rules</span>}>
-                Show rules
-              </Eyebrow>
-              <div style={{ display: 'grid', gap: 6 }}>
-                {show.showRules.map((r, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, fontSize: '0.78rem', color: 'var(--ink-2)', lineHeight: 1.4 }}>
-                    <span className="mono" style={{ color: 'var(--amber)', flexShrink: 0 }}>
-                      R{i + 1}
-                    </span>
-                    {r}
-                  </div>
-                ))}
-                {show.showRules.length === 0 && (
-                  <div style={{ fontSize: '0.74rem', color: 'var(--ink-4)' }}>No rules declared on this spine.</div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                {show.requiredRoles.map((r) => (
-                  <span
-                    key={r}
-                    style={{
-                      fontSize: '0.68rem',
-                      color: 'var(--cyan)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-pill)',
-                      padding: '3px 9px',
-                    }}
-                  >
-                    {r}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {cue ? (
-            <section
-              style={{
-                borderRadius: 'var(--radius-l)',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                padding: 18,
-              }}
-            >
-              <Eyebrow
-                right={
-                  <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <CueLight lamp={cue.evaluated ? gateLamp(cue.gate) : 'idle'} pulse={busy} />
-                    <span style={{ fontSize: '0.66rem', color: riskColor(cue.riskLevel) }}>{cue.riskLevel} risk</span>
-                  </span>
-                }
-              >
-                Cue card
-              </Eyebrow>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', marginBottom: 4 }}>{cue.title}</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--ink-3)', marginBottom: 12 }}>
-                {cue.cueType} | {cue.segment} | {cue.timingWindow} | role: {cue.responsibleRole} |{' '}
-                {cue.audienceVisibility.replace(/_/g, ' ')}
-              </div>
-              <p style={{ fontSize: '0.84rem', color: 'var(--ink-2)', lineHeight: 1.55, marginBottom: 14 }}>
-                {cue.instruction}
-              </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <CueList title="Preconditions" items={cue.preconditions} matched={cue.matchedPreconditions} />
-                <CueList title="Dependencies" items={cue.dependencies} issues={cue.dependencyIssues} />
-              </div>
-
-              {cue.fallbackInstruction && (
-                <div style={{ marginTop: 12, fontSize: '0.76rem', color: 'var(--ink-3)' }}>
-                  <span style={{ color: 'var(--cyan)' }}>Fallback:</span> {cue.fallbackInstruction}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-                <Button variant="ghost" onClick={() => setShowAckForm(true)}>
-                  Log acknowledgement
-                </Button>
-                {!cue.evaluated && (
-                  <Button onClick={() => evaluateCue(cue)} disabled={busy}>
-                    {busy ? 'Calling...' : 'Call cue through gate'}
-                  </Button>
-                )}
-                {cue.evaluated && (cue.gate === 'READY' || cue.gate === 'READY_WITH_CAUTION') && cue.status !== 'complete' && (
-                  <Button onClick={() => sealCueReceipt(cue)} disabled={busy}>
-                    Seal cue receipt
-                  </Button>
-                )}
-              </div>
-
-              {acks.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: '0.64rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 6 }}>
-                    Acknowledgements
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {acks.map((a) => (
-                      <span
-                        key={a.id}
-                        style={{
-                          fontSize: '0.68rem',
-                          color: 'var(--ink-2)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-pill)',
-                          padding: '3px 9px',
-                        }}
-                        title={a.ackText}
-                      >
-                        {a.role}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-          ) : (
-            show && (
-              <div
-                style={{
-                  borderRadius: 'var(--radius-l)',
-                  border: '1px dashed var(--border)',
-                  padding: 36,
-                  textAlign: 'center',
-                  color: 'var(--ink-3)',
-                }}
-              >
-                <p style={{ marginBottom: 14, lineHeight: 1.6 }}>
-                  Select a cue from the stack, or write a new cue card for this spine.
-                </p>
-                <Button onClick={() => setShowCueForm(true)}>Write a cue card</Button>
-              </div>
-            )
-          )}
-        </main>
-
-        <aside style={{ borderLeft: '1px solid var(--border)', padding: 16, overflowY: 'auto' }}>
-          <Eyebrow>Cue gate</Eyebrow>
-          {cue?.evaluated ? (
-            <div style={{ display: 'grid', gap: 16 }}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={cue.gate}
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  style={{ display: 'flex', justifyContent: 'center' }}
-                >
-                  <GateLock gate={cue.gate} confidenceBps={cue.confidenceBps} animate={gateAnim && !reducedMotion} />
-                </motion.div>
-              </AnimatePresence>
-
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  color: 'var(--ink-2)',
-                  lineHeight: 1.5,
-                  padding: 12,
-                  borderRadius: 'var(--radius-m)',
-                  border: '1px solid var(--border)',
-                  background: 'rgba(246,231,200,0.02)',
-                }}
-              >
-                {cue.shortReason || 'No reason recorded.'}
-                {(cue.riskFlags.length > 0 || cue.requiredActions.length > 0) && (
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.7rem', color: 'var(--ink-3)' }}>
-                    {cue.riskFlags.length > 0 && <span>Risk flags: {cue.riskFlags.join(', ')}</span>}
-                    {cue.requiredActions.length > 0 && <span>Required actions: {cue.requiredActions.join(', ')}</span>}
-                    {cue.unresolvedPreconditions.length > 0 && (
-                      <span>Unresolved preconditions: {cue.unresolvedPreconditions.join(', ')}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <div style={{ fontSize: '0.64rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 8 }}>
-                  Validators
-                </div>
-                <ValidatorPanel validators={cue.validatorSummary} active={gateAnim} />
-              </div>
-
-              <Button variant="ghost" onClick={() => downloadJson(`${cue.id}.json`, cue)} style={{ width: '100%' }}>
-                Export cue JSON
-              </Button>
-            </div>
-          ) : cue ? (
+          {/* role / acknowledgement lanes beneath the spine */}
+          {show && laneList.length > 0 && (
             <div
               style={{
-                fontSize: '0.78rem',
-                color: 'var(--ink-3)',
-                border: '1px dashed var(--border)',
-                borderRadius: 'var(--radius-m)',
-                padding: 16,
-                lineHeight: 1.5,
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                padding: '10px 18px 16px',
+                borderTop: '1px solid var(--border)',
               }}
             >
-              This cue has not been called through the gate yet. Call it to settle a READY, HOLD, REVISION, BLOCK, or
-              confirmation outcome under consensus.
+              {laneList.map((role) => (
+                <span
+                  key={role}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '0.68rem',
+                    color: 'var(--ink-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-pill)',
+                    padding: '4px 11px',
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--cyan)' }} />
+                  {role}
+                  <span className="mono" style={{ color: 'var(--ink-4)' }}>
+                    {ackByRole.get(role) || 0} ack
+                  </span>
+                </span>
+              ))}
             </div>
-          ) : (
-            <ValidatorPanel validators={[]} />
           )}
+        </section>
 
-          {show && (
-            <div style={{ marginTop: 22 }}>
-              <Eyebrow
+        {/* ============ ZONE 2: broadcast gallery ============ */}
+        {show ? (
+          <>
+            {/* horizontal cue lane */}
+            <section>
+              <Eyebrow right={<span style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>{cues.length} cues in running order</span>}>
+                Cue ribbon
+              </Eyebrow>
+              <CueLane
+                cues={cues}
+                activeCue={activeCue}
+                reducedMotion={reducedMotion}
+                onSelectCue={selectCue}
+                onNewCue={() => setShowCueForm(true)}
+              />
+            </section>
+
+            {/* large central GATE panel */}
+            <section
+              style={{
+                borderRadius: 'var(--radius-l)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                padding: 20,
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                gap: 22,
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <Eyebrow>On-air gate</Eyebrow>
+                {cue ? (
+                  <>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: 4 }}>{cue.title}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--ink-3)', marginBottom: 12 }}>
+                      {cue.cueType} | {cue.segment} | role: {cue.responsibleRole}
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--ink-2)', lineHeight: 1.55, marginBottom: 14, maxWidth: 620 }}>
+                      {cue.evaluated ? cue.shortReason || cue.instruction : cue.instruction}
+                    </p>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <Button onClick={() => setGateOpen(true)}>Open on-air gate</Button>
+                      {!cue.evaluated && (
+                        <Button variant="ghost" onClick={() => evaluateCue(cue)} disabled={busy}>
+                          {busy ? 'Calling...' : 'Call through gate'}
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 560 }}>
+                    Pick a cue slip from the ribbon to bring it up on the gate. The cue gate settles a READY, HOLD,
+                    REVISION, BLOCK, or confirmation outcome under validator consensus.
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', minWidth: 160 }}>
+                {cue?.evaluated ? (
+                  <GateLock gate={cue.gate} confidenceBps={cue.confidenceBps} animate={gateAnim && !reducedMotion} />
+                ) : (
+                  <GateLock gate="" confidenceBps={0} animate={false} />
+                )}
+              </div>
+            </section>
+
+            {/* bottom bento row: validators + run-of-show receipt + show rules */}
+            <section
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 16,
+                alignItems: 'start',
+              }}
+            >
+              <BentoCard title="Validators">
+                {cue?.evaluated ? (
+                  <ValidatorPanel validators={cue.validatorSummary} active={gateAnim} />
+                ) : (
+                  <ValidatorPanel validators={[]} />
+                )}
+              </BentoCard>
+
+              <BentoCard
+                title="Run of show"
                 right={
                   <Button variant="ghost" onClick={sealShowReceipt} disabled={busy} style={{ padding: '4px 10px', fontSize: '0.7rem' }}>
                     Seal
                   </Button>
                 }
               >
-                Run of show
-              </Eyebrow>
-              {showReceipt ? (
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <ShowReceiptSeal receipt={showReceipt} animate={false} />
-                </div>
-              ) : (
-                <div style={{ fontSize: '0.74rem', color: 'var(--ink-4)', lineHeight: 1.5 }}>
-                  No run-of-show receipt sealed yet. Seal one to tally how many cues cleared.
-                </div>
-              )}
-            </div>
-          )}
-        </aside>
-      </div>
+                {showReceipt ? (
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <ShowReceiptSeal receipt={showReceipt} animate={false} />
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.74rem', color: 'var(--ink-4)', lineHeight: 1.5 }}>
+                    No run-of-show receipt sealed yet. Seal one to tally how many cues cleared.
+                  </div>
+                )}
+              </BentoCard>
 
-      <TransportBar phase={txPhase} hash={txHash} message={txMessage} />
+              <BentoCard title="Show rules" right={<span style={{ fontSize: '0.66rem', color: 'var(--ink-3)' }}>{show.showRules.length}</span>}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {show.showRules.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, fontSize: '0.76rem', color: 'var(--ink-2)', lineHeight: 1.4 }}>
+                      <span className="mono" style={{ color: 'var(--amber)', flexShrink: 0 }}>
+                        R{i + 1}
+                      </span>
+                      {r}
+                    </div>
+                  ))}
+                  {show.showRules.length === 0 && (
+                    <div style={{ fontSize: '0.74rem', color: 'var(--ink-4)' }}>No rules declared on this spine.</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+                  {show.requiredRoles.map((r) => (
+                    <span
+                      key={r}
+                      style={{
+                        fontSize: '0.66rem',
+                        color: 'var(--cyan)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-pill)',
+                        padding: '3px 9px',
+                      }}
+                    >
+                      {r}
+                    </span>
+                  ))}
+                </div>
+              </BentoCard>
+            </section>
+          </>
+        ) : (
+          <div
+            style={{
+              borderRadius: 'var(--radius-l)',
+              border: '1px dashed var(--border)',
+              padding: 48,
+              textAlign: 'center',
+              color: 'var(--ink-3)',
+            }}
+          >
+            <p style={{ marginBottom: 16, lineHeight: 1.6 }}>
+              No show spine open. Open one to lay out a running order and start calling cues through the gate.
+            </p>
+            <Button onClick={() => setShowShowForm(true)}>Open a show spine</Button>
+          </div>
+        )}
+      </main>
+
+      {/* on-air gate overlay: the cue inspector, not a side rail */}
+      {gateOpen && cue && (
+        <OnAirGate
+          cue={cue}
+          busy={busy}
+          gateAnim={gateAnim}
+          reducedMotion={reducedMotion}
+          onClose={() => setGateOpen(false)}
+          onEvaluate={evaluateCue}
+          onSealCue={sealCueReceipt}
+          onAck={() => setShowAckForm(true)}
+        />
+      )}
 
       {showAbout && <AboutDrawer onClose={() => setShowAbout(false)} />}
       {showShowForm && <ShowForm onClose={() => setShowShowForm(false)} onDone={notify} />}
@@ -595,6 +608,15 @@ export default function ControlRoomPage() {
   );
 }
 
+const pillBtn: React.CSSProperties = {
+  fontSize: '0.72rem',
+  color: 'var(--ink-2)',
+  background: 'transparent',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-pill)',
+  padding: '6px 13px',
+};
+
 function Stat({ label, value }: { label: string; value?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
@@ -606,41 +628,27 @@ function Stat({ label, value }: { label: string; value?: number }) {
   );
 }
 
-function CueList({
+function BentoCard({
   title,
-  items,
-  matched,
-  issues,
+  right,
+  children,
 }: {
   title: string;
-  items: string[];
-  matched?: string[];
-  issues?: string[];
+  right?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div>
-      <div style={{ fontSize: '0.64rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 6 }}>
-        {title}
-      </div>
-      {items.length === 0 ? (
-        <div style={{ fontSize: '0.72rem', color: 'var(--ink-4)' }}>(none)</div>
-      ) : (
-        <div style={{ display: 'grid', gap: 4 }}>
-          {items.map((it, i) => {
-            const isMatched = matched?.some((m) => m === String(i) || m === it);
-            const isIssue = issues?.some((m) => m === it || m === String(i));
-            const color = isIssue ? 'var(--hold-red)' : isMatched ? 'var(--go)' : 'var(--ink-2)';
-            return (
-              <div key={i} style={{ display: 'flex', gap: 7, fontSize: '0.74rem', color, lineHeight: 1.35 }}>
-                <span className="mono" style={{ color: 'var(--ink-4)', flexShrink: 0 }}>
-                  {i}
-                </span>
-                {it}
-              </div>
-            );
-          })}
-        </div>
-      )}
+    <div
+      style={{
+        borderRadius: 'var(--radius-l)',
+        border: '1px solid var(--border)',
+        background: 'var(--surface)',
+        padding: 18,
+        minHeight: 0,
+      }}
+    >
+      <Eyebrow right={right}>{title}</Eyebrow>
+      {children}
     </div>
   );
 }

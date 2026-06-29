@@ -162,8 +162,55 @@ a {
   }
 }
 
+/* Gallery entry: panels lift like a rising house curtain when the desk loads. */
+@keyframes cf-curtain {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scaleY(0.965);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+/* Pointer / selection reaction: a cue card flares an amber ring when called up. */
+@keyframes cf-select {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 184, 77, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(255, 184, 77, 0);
+  }
+}
+
+/* On-air glow breathing on the transport now-line while a round is live. */
+@keyframes cf-onair {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--border-strong), 0 0 22px rgba(255, 92, 115, 0.28);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--border-strong), 0 0 40px rgba(255, 92, 115, 0.5);
+  }
+}
+
 .rise {
   animation: cf-rise var(--dur-2) var(--ease) both;
+}
+
+.curtain {
+  animation: cf-curtain var(--dur-3) var(--ease) both;
+}
+
+/* Horizontal cue lane: hide the scrollbar chrome but keep wheel/drag scroll. */
+.cue-lane {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.cue-lane::-webkit-scrollbar {
+  height: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -10,6 +10,9 @@ interface Props {
   phase: TxPhase;
   hash?: string;
   message?: string;
+  // When true, render as an embedded now-line inside the Show Spine hero rather
+  // than a bottom strip. The on-air glow (cf-onair) breathes while a round runs.
+  embedded?: boolean;
 }
 
 // The control-room transport bar. It stages a write as a consensus round:
@@ -38,20 +41,24 @@ const PHASE_COLOR: Record<TxPhase, string> = {
   error: 'var(--hold-red)',
 };
 
-export default function TransportBar({ phase, hash, message }: Props) {
+export default function TransportBar({ phase, hash, message, embedded = false }: Props) {
   const color = PHASE_COLOR[phase];
   const busy = phase === 'pending' || phase === 'signing';
+  const onAir = phase === 'pending';
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 14,
-        padding: '10px 18px',
-        borderTop: '1px solid var(--border)',
-        background: 'rgba(5,5,8,0.7)',
+        padding: embedded ? '12px 18px' : '10px 18px',
+        borderTop: embedded ? 'none' : '1px solid var(--border)',
+        border: embedded ? '1px solid var(--border)' : undefined,
+        borderRadius: embedded ? 'var(--radius-m)' : undefined,
+        background: embedded ? 'rgba(5,5,8,0.55)' : 'rgba(5,5,8,0.7)',
         backdropFilter: 'blur(8px)',
         minHeight: 50,
+        animation: onAir ? 'cf-onair 2s ease-in-out infinite' : undefined,
       }}
     >
       <span
